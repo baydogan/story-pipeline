@@ -16,7 +16,6 @@
       "motion_bucket_id": 127,
       "fps": 6,
       "augmentation_level": 0,
-      "model": ["1", 0],
       "clip_vision": ["1", 1],
       "init_image": ["2", 0],
       "vae": ["1", 2]
