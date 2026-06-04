@@ -28,6 +28,7 @@ loadEnv();
 
 const VALID_MODES = ['mock', 'local'];
 const VALID_LANGUAGES = ['en', 'es', 'none'];
+const VALID_VIDEO_MODELS = ['svd', 'cogvideox'];
 
 function require_env(key, fallback) {
   const val = process.env[key] ?? fallback;
@@ -45,9 +46,15 @@ if (!VALID_LANGUAGES.includes(language)) {
   throw new Error(`LANGUAGE must be one of ${VALID_LANGUAGES.join('|')}, got: ${language}`);
 }
 
+const videoModel = require_env('VIDEO_MODEL', 'svd');
+if (!VALID_VIDEO_MODELS.includes(videoModel)) {
+  throw new Error(`VIDEO_MODEL must be one of ${VALID_VIDEO_MODELS.join('|')}, got: ${videoModel}`);
+}
+
 const config = Object.freeze({
   mode,                                              // 'mock' | 'local'
   language,                                          // 'en' | 'es' | 'none'
+  videoModel,                                        // 'svd' | 'cogvideox'
 
   ollama: Object.freeze({
     url:   require_env('OLLAMA_URL',  'http://localhost:11434'),

@@ -58,7 +58,7 @@ async function mockGenerateClip(scene, imagePath, outputPath) {
   logger.debug(`clips.mock: wrote ${outputPath}`);
 }
 
-async function localGenerateClip(scene, imagePath, outputPath) {
+async function localGenerateClipSvd(scene, imagePath, outputPath) {
   const { readFileSync } = await import('fs');
   const { readFile, writeFile, mkdir: mkd } = await import('fs/promises');
   const { resolve, dirname: dn } = await import('path');
@@ -68,10 +68,9 @@ async function localGenerateClip(scene, imagePath, outputPath) {
   const __dirname = dn(fileURLToPath(import.meta.url));
   const template  = JSON.parse(readFileSync(resolve(__dirname, '../comfy/workflows/svd.json'), 'utf8'));
 
-  // Upload reference image to ComfyUI input folder
   const imgBuffer = await readFile(imagePath);
   const uploaded  = await uploadImage(imgBuffer, `scene-${String(scene.id).padStart(2,'0')}.png`);
-  logger.info(`clips.local: uploaded image → ${uploaded.name}`);
+  logger.info(`clips.svd: uploaded image → ${uploaded.name}`);
 
   const workflow = patchWorkflow(template, {
     '2': { image: uploaded.name },
@@ -79,15 +78,50 @@ async function localGenerateClip(scene, imagePath, outputPath) {
     '5': { seed: scene.seed ?? 0 },
   });
 
-  logger.info(`clips.local: running SVD for scene ${scene.id} (motion_bucket=${scene.motion_bucket})...`);
-  const files   = await runWorkflow(workflow);
-  const video   = files.find(f => /\.mp4$/i.test(f.filename));
+  logger.info(`clips.svd: running SVD for scene ${scene.id} (motion_bucket=${scene.motion_bucket})...`);
+  const files = await runWorkflow(workflow);
+  const video = files.find(f => /\.mp4$/i.test(f.filename));
   if (!video) throw new Error(`SVD produced no MP4 output for scene ${scene.id}`);
 
   const buffer = await downloadFile(video.filename, video.subfolder, video.type);
   await mkd(dn(outputPath), { recursive: true });
   await writeFile(outputPath, buffer);
-  logger.info(`clips.local: scene ${scene.id} → ${outputPath}`);
+  logger.info(`clips.svd: scene ${scene.id} → ${outputPath}`);
+}
+
+async function localGenerateClipCogVideoX(scene, imagePath, outputPath) {
+  const { readFileSync } = await import('fs');
+  const { writeFile, mkdir: mkd } = await import('fs/promises');
+  const { resolve, dirname: dn } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const { runWorkflow, downloadFile, patchWorkflow } = await import('../comfy/client.js');
+
+  const __dirname = dn(fileURLToPath(import.meta.url));
+  const template  = JSON.parse(readFileSync(resolve(__dirname, '../comfy/workflows/cogvideox.json'), 'utf8'));
+
+  const workflow = patchWorkflow(template, {
+    '3': { prompt: scene.image_prompt },
+    '4': { prompt: scene.negative_prompt || '' },
+    '6': { seed: scene.seed ?? 0 },
+  });
+
+  logger.info(`clips.cogvideox: running CogVideoX (T2V) for scene ${scene.id}...`);
+  const files = await runWorkflow(workflow);
+  const video = files.find(f => /\.mp4$/i.test(f.filename));
+  if (!video) throw new Error(`CogVideoX produced no MP4 output for scene ${scene.id}`);
+
+  const buffer = await downloadFile(video.filename, video.subfolder, video.type);
+  await mkd(dn(outputPath), { recursive: true });
+  await writeFile(outputPath, buffer);
+  logger.info(`clips.cogvideox: scene ${scene.id} → ${outputPath}`);
+}
+
+async function localGenerateClip(scene, imagePath, outputPath) {
+  const { default: config } = await import('../config.js');
+  if (config.videoModel === 'cogvideox') {
+    return localGenerateClipCogVideoX(scene, imagePath, outputPath);
+  }
+  return localGenerateClipSvd(scene, imagePath, outputPath);
 }
 
 export const mock  = mockGenerateClip;
