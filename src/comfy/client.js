@@ -26,10 +26,17 @@ async function queuePrompt(workflow, clientId) {
   return prompt_id;
 }
 
-function waitForCompletion(promptId, clientId, timeoutMs = 10 * 60 * 1000) {
+// Open a WebSocket and wait until it's connected before resolving
+function openWebSocket(clientId) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`${WS_BASE}/ws?clientId=${clientId}`);
+    ws.addEventListener('open', () => resolve(ws));
+    ws.addEventListener('error', () => reject(new Error(`ComfyUI WebSocket error — is ComfyUI running at ${BASE}?`)));
+  });
+}
 
+function waitForCompletion(ws, promptId, timeoutMs = 10 * 60 * 1000) {
+  return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       ws.close();
       reject(new Error(`ComfyUI timed out after ${timeoutMs / 1000}s (prompt ${promptId})`));
@@ -45,17 +52,12 @@ function waitForCompletion(promptId, clientId, timeoutMs = 10 * 60 * 1000) {
       }
       if (msg.data?.prompt_id !== promptId) return;
 
-      if (msg.type === 'execution_complete') {
+      if (msg.type === 'execution_success' || msg.type === 'execution_complete') {
         clearTimeout(timer); ws.close(); resolve();
       } else if (msg.type === 'execution_error') {
         clearTimeout(timer); ws.close();
         reject(new Error(msg.data.exception_message ?? 'ComfyUI execution error'));
       }
-    });
-
-    ws.addEventListener('error', (evt) => {
-      clearTimeout(timer);
-      reject(new Error(`ComfyUI WebSocket error — is ComfyUI running at ${BASE}?`));
     });
   });
 }
@@ -84,9 +86,11 @@ async function getOutputFiles(promptId) {
 // Queue a workflow, wait for completion, return output file descriptors
 export async function runWorkflow(workflow) {
   const clientId = randomUUID();
+  // Connect WebSocket BEFORE queuing so we never miss the completion event
+  const ws = await openWebSocket(clientId);
   const promptId = await queuePrompt(workflow, clientId);
   logger.info(`comfy: queued prompt ${promptId}`);
-  await waitForCompletion(promptId, clientId);
+  await waitForCompletion(ws, promptId);
   logger.info(`comfy: prompt ${promptId} complete`);
   return getOutputFiles(promptId);
 }
