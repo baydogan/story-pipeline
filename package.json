@@ -1,0 +1,17 @@
+{
+  "name": "story-to-video",
+  "version": "0.1.0",
+  "description": "Local AI pipeline: short story → animated video (Ollama + ComfyUI + ffmpeg)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "mock": "MODE=mock node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "fluent-ffmpeg": "^2.1.3",
+    "sharp": "^0.33.4",
+    "zod": "^3.23.8"
+  }
+}
