@@ -2,6 +2,7 @@ node_modules/
 output/
 .env
 .claude/
+CLAUDE.md
 *.mp4
 *.wav
 *.png
