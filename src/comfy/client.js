@@ -47,12 +47,17 @@ function waitForCompletion(ws, promptId, timeoutMs = 10 * 60 * 1000) {
       try { msg = JSON.parse(evt.data); } catch { return; }
 
       if (msg.type === 'progress') {
-        logger.debug(`comfy progress ${msg.data.value}/${msg.data.max}`);
+        const { value, max } = msg.data;
+        const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+        const filled = Math.round(pct / 5);
+        const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+        process.stdout.write(`\r[comfy] ${bar} ${pct}% (${value}/${max})`);
         return;
       }
       if (msg.data?.prompt_id !== promptId) return;
 
       if (msg.type === 'execution_success' || msg.type === 'execution_complete') {
+        process.stdout.write('\n');
         clearTimeout(timer); ws.close(); resolve();
       } else if (msg.type === 'execution_error') {
         clearTimeout(timer); ws.close();
