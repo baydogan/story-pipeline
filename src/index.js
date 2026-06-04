@@ -8,6 +8,29 @@ import { step05Compose } from './pipeline/05-compose.js';
 
 logger.info('=== estación de la mano ===', { mode: config.mode, language: config.language });
 
+if (config.mode === 'local') {
+  const checks = [
+    { name: 'Ollama',   url: `${config.ollama.url}/api/tags` },
+    { name: 'ComfyUI',  url: `${config.comfy.url}/system_stats` },
+  ];
+  const failed = [];
+  await Promise.all(checks.map(async ({ name, url }) => {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (!res.ok) failed.push({ name, reason: `HTTP ${res.status}` });
+    } catch {
+      failed.push({ name, reason: 'not reachable' });
+    }
+  }));
+  if (failed.length) {
+    for (const { name, reason } of failed)
+      logger.error(`PREFLIGHT: ${name} is ${reason} — start it before running in local mode`);
+    logger.error('Pipeline aborted. Tip: run with MODE=mock to test without services.');
+    process.exit(1);
+  }
+  logger.info('preflight: Ollama + ComfyUI reachable');
+}
+
 try {
   const scenes  = await step01Scenes();
   await step02Images(scenes);
